@@ -3,10 +3,38 @@
 pragma solidity 0.8.16;
 
 /**
+ * @title PixCashier types interface
+ */
+interface IPixCashierTypes {
+    /**
+     * @dev Possible statuses of a cash-out operation as an enum.
+     *
+     * The possible values:
+     * - Nonexistent - The operation does not exist (the default value).
+     * - Pending ----- The status immediately after the operation requesting.
+     * - Reversed ---- The operation was reversed.
+     * - Confirmed --- The operations was confirmed.
+     */
+    enum CashOutOperationStatus {
+        Nonexistent, // 0
+        Pending,     // 1
+        Reversed,    // 2
+        Confirmed    // 3
+    }
+
+    /// @dev Structure with data of a single cash-out operation
+    struct CashOutOperation {
+        address account;
+        uint256 amount;
+        CashOutOperationStatus status;
+    }
+}
+
+/**
  * @title PixCashier interface
  * @dev The interface of the wrapper contract for PIX cash-in and cash-out operations.
  */
-interface IPixCashier {
+interface IPixCashier is IPixCashierTypes {
     /// @dev Emitted when a new cash-in operation is executed.
     event CashIn(
         address indexed account, // The account that receives tokens.
@@ -49,6 +77,12 @@ interface IPixCashier {
      */
     function cashOutBalanceOf(address account) external view returns (uint256);
 
+    /// @dev Todo: write the comment
+    function getPendingTxIds() external view returns (bytes32[] memory);
+
+    /// @dev Todo: write the comment
+    function getCashOutOperations(bytes32[] memory txIds) external view returns (CashOutOperation[] memory);
+
     /**
      * @dev Executes a cash-in operation.
      *
@@ -83,25 +117,23 @@ interface IPixCashier {
      * @dev Confirms a cash-out operation.
      *
      * Burns tokens previously transferred to the contract.
-     * This function is expected to be called by any account.
+     * This function can be called by a limited number of accounts that are allowed to process cash-out operations.
      *
      * Emits a {CashOutConfirm} event.
      *
-     * @param amount The amount of tokens to be burned.
      * @param txId The off-chain transaction identifier.
      */
-    function cashOutConfirm(uint256 amount, bytes32 txId) external;
+    function cashOutConfirm(bytes32 txId) external;
 
     /**
      * @dev Reverts a cash-out operation.
      *
      * Transfers tokens back from the contract to the caller.
-     * This function is expected to be called by any account.
+     * This function can be called by a limited number of accounts that are allowed to process cash-out operations.
      *
      * Emits a {CashOutReverse} event.
      *
-     * @param amount The amount of tokens to be transferred back.
      * @param txId The off-chain transaction identifier.
      */
-    function cashOutReverse(uint256 amount, bytes32 txId) external;
+    function cashOutReverse(bytes32 txId) external;
 }
