@@ -15,7 +15,7 @@ interface IPixCashierTypes {
      * - Reversed ---- The operation was reversed.
      * - Confirmed --- The operations was confirmed.
      */
-    enum CashOutOperationStatus {
+    enum CashOutStatus {
         Nonexistent, // 0
         Pending,     // 1
         Reversed,    // 2
@@ -23,10 +23,10 @@ interface IPixCashierTypes {
     }
 
     /// @dev Structure with data of a single cash-out operation
-    struct CashOutOperation {
+    struct CashOut {
         address account;
         uint256 amount;
-        CashOutOperationStatus status;
+        CashOutStatus status;
     }
 }
 
@@ -43,7 +43,7 @@ interface IPixCashier is IPixCashierTypes {
     );
 
     /// @dev Emitted when a new cash-out operation is initiated.
-    event CashOut(
+    event RequestCashOut(
         address indexed account, // The account that executes tokens cash-out.
         uint256 amount,          // The amount of tokens to cash-out.
         uint256 balance,         // The new pending cash-out balance of the account.
@@ -51,7 +51,7 @@ interface IPixCashier is IPixCashierTypes {
     );
 
     /// @dev Emitted when a cash-out operation is confirmed.
-    event CashOutConfirm(
+    event ConfirmCashOut(
         address indexed account, // The account that executes tokens cash-out.
         uint256 amount,          // The amount of tokens to cash-out.
         uint256 balance,         // The new pending cash-out balance of the account.
@@ -59,7 +59,7 @@ interface IPixCashier is IPixCashierTypes {
     );
 
     /// @dev Emitted when a cash-out operation is reversed.
-    event CashOutReverse(
+    event ReverseCashOut(
         address indexed account, // The account that executes tokens cash-out.
         uint256 amount,          // The amount of tokens to cash-out.
         uint256 balance,         // The new pending cash-out balance of the account.
@@ -77,11 +77,41 @@ interface IPixCashier is IPixCashierTypes {
      */
     function cashOutBalanceOf(address account) external view returns (uint256);
 
-    /// @dev Todo: write the comment
-    function getPendingTxIds() external view returns (bytes32[] memory);
+    /// @dev Returns the pending cash-out operation counter.
+    function pendingCashOutCounter() external view returns (uint256);
 
-    /// @dev Todo: write the comment
-    function getCashOutOperations(bytes32[] memory txIds) external view returns (CashOutOperation[] memory);
+    /// @dev Returns the processed cash-out operation counter that includes number of reversed and confirmed operations.
+    function processedCashOutCounter() external view returns (uint256);
+
+    /**
+     * @dev Returns the off-chain transaction identifiers of pending cash-out operations.
+     *
+     * No guarantees are made on the ordering of the identifiers in the returned array.
+     * When you can't prevent confirming and reversing of cash-out operations during calling this function several
+     * times to sequentially read of all available identifiers the following procedure is recommended:
+     *
+     * - 1. Call the `processedCashOutCounter()` function and remember the returned value as C1.
+     * - 2. Call this function several times with needed values of `index` and `limit` like (0,5), (5,5), (10,5), ...
+     * - 3. Execute step 2 until the length of the returned array becomes less than the `limit` value.
+     * - 4. Call the `processedCashOutCounter()` function and remember the returned value as C2.
+     * - 5. If C1 == C2 the result of function calls is consistent. Else repeat the procedure from step 1.
+     * @param index The first index in the internal array of pending identifiers to fetch.
+     * @param limit The maximum number of returned identifiers.
+     * @return txIds The array of requested identifiers.
+     */
+    function getPendingCashOutTxIds(uint256 index, uint256 limit) external view returns (bytes32[] memory txIds);
+
+    /**
+     * @dev Returns data of a single cash-out operation.
+     * @param txId The off-chain transaction identifier of the operation.
+     */
+    function getCashOut(bytes32 txId) external view returns (CashOut memory);
+
+    /**
+     * @dev Returns data of several cash-out operations.
+     * @param txIds The off-chain transaction identifiers of the operations.
+     */
+    function getCashOuts(bytes32[] memory txIds) external view returns (CashOut[] memory cashOuts);
 
     /**
      * @dev Executes a cash-in operation.
@@ -92,7 +122,7 @@ interface IPixCashier is IPixCashierTypes {
      *
      * @param account The address of the tokens recipient.
      * @param amount The amount of tokens to be received.
-     * @param txId The off-chain transaction identifier.
+     * @param txId The off-chain transaction identifier of the operation.
      */
     function cashIn(
         address account,
@@ -109,31 +139,55 @@ interface IPixCashier is IPixCashierTypes {
      * Emits a {CashOut} event.
      *
      * @param amount The amount of tokens to be cash-outed.
-     * @param txId The off-chain transaction identifier.
+     * @param txId The off-chain transaction identifier of the operation.
      */
-    function cashOut(uint256 amount, bytes32 txId) external;
+    function requestCashOut(uint256 amount, bytes32 txId) external;
 
     /**
-     * @dev Confirms a cash-out operation.
+     * @dev Confirms a single cash-out operation.
      *
      * Burns tokens previously transferred to the contract.
      * This function can be called by a limited number of accounts that are allowed to process cash-out operations.
      *
-     * Emits a {CashOutConfirm} event.
+     * Emits a {CashOutConfirm} event for the operation.
      *
-     * @param txId The off-chain transaction identifier.
+     * @param txId The off-chain transaction identifier of the operation.
      */
-    function cashOutConfirm(bytes32 txId) external;
+    function confirmCashOut(bytes32 txId) external;
 
     /**
-     * @dev Reverts a cash-out operation.
+     * @dev Confirms several cash-out operations.
      *
-     * Transfers tokens back from the contract to the caller.
+     * Burns tokens previously transferred to the contract.
      * This function can be called by a limited number of accounts that are allowed to process cash-out operations.
      *
-     * Emits a {CashOutReverse} event.
+     * Emits a {CashOutConfirm} event for each operation.
      *
-     * @param txId The off-chain transaction identifier.
+     * @param txIds The off-chain transaction identifiers of the operations.
      */
-    function cashOutReverse(bytes32 txId) external;
+    function confirmCashOuts(bytes32[] memory txIds) external;
+
+    /**
+     * @dev Reverts a single cash-out operation.
+     *
+     * Transfers tokens back from the contract to the account that requested the operation.
+     * This function can be called by a limited number of accounts that are allowed to process cash-out operations.
+     *
+     * Emits a {CashOutReverse} event for the operation.
+     *
+     * @param txId The off-chain transaction identifier of the operation.
+     */
+    function reverseCashOut(bytes32 txId) external;
+
+    /**
+     * @dev Reverts several cash-out operation.
+     *
+     * Transfers tokens back from the contract to the accounts that requested the operations.
+     * This function can be called by a limited number of accounts that are allowed to process cash-out operations.
+     *
+     * Emits a {CashOutReverse} event for each operation.
+     *
+     * @param txIds The off-chain transaction identifiers of the operations.
+     */
+    function reverseCashOuts(bytes32[] memory txIds) external;
 }
