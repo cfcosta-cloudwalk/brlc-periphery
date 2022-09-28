@@ -54,14 +54,14 @@ contract PixCashier is
     /// @dev The zero off-chain transaction identifier has been passed as a function argument.
     error ZeroTxId();
 
-    /// @dev Empty array of off-chain transaction identifier has been passed as a function argument.
-    error EmptyTxIdsArray();
-
     /**
      * @dev The cash-out operation with the provided off-chain transaction identifier has an inappropriate status.
      * @param currentStatus The current status of the operation.
      */
     error InappropriateCashOutStatus(CashOutStatus currentStatus);
+
+    /// @dev Empty array of off-chain transaction identifier has been passed as a function argument.
+    error EmptyTxIdsArray();
 
     // -------------------- Functions --------------------------------
 
