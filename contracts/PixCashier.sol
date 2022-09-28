@@ -246,7 +246,7 @@ contract PixCashier is
      * - The cash-out operation corresponded the provided `txId` value must have the pending status.
      */
     function confirmCashOut(bytes32 txId) external whenNotPaused onlyRole(CASHIER_ROLE) {
-        _confirmCashOut(txId);
+        _processCashOut(txId, CashOutStatus.Confirmed);
     }
 
     /**
@@ -267,7 +267,7 @@ contract PixCashier is
         }
 
         for (uint256 i = 0; i < len; i++) {
-            _confirmCashOut(txIds[i]);
+            _processCashOut(txIds[i], CashOutStatus.Confirmed);
         }
     }
 
@@ -282,7 +282,7 @@ contract PixCashier is
      * - The cash-out operation corresponded the provided `txId` value must have the pending status.
      */
     function reverseCashOut(bytes32 txId) external whenNotPaused onlyRole(CASHIER_ROLE) {
-        _reverseCashOut(txId);
+        _processCashOut(txId, CashOutStatus.Reversed);
     }
 
     /**
@@ -303,37 +303,11 @@ contract PixCashier is
         }
 
         for (uint256 i = 0; i < len; i++) {
-            _reverseCashOut(txIds[i]);
+            _processCashOut(txIds[i], CashOutStatus.Reversed);
         }
     }
 
-    function _confirmCashOut(bytes32 txId) internal {
-        (address account, uint256 amount, uint256 cashOutBalance) = _processCashOut(txId);
-
-        emit ConfirmCashOut(
-            account,
-            amount,
-            cashOutBalance,
-            txId
-        );
-
-        IERC20Mintable(_token).burn(amount);
-    }
-
-    function _reverseCashOut(bytes32 txId) internal {
-        (address account, uint256 amount, uint256 cashOutBalance) = _processCashOut(txId);
-
-        emit ReverseCashOut(
-            account,
-            amount,
-            cashOutBalance,
-            txId
-        );
-
-        IERC20Upgradeable(_token).safeTransfer(account, amount);
-    }
-
-    function _processCashOut(bytes32 txId) internal returns (address account, uint256 amount, uint256 cashOutBalance) {
+    function _processCashOut(bytes32 txId, CashOutStatus targetStatus) internal {
         if (txId == 0) {
             revert ZeroTxId();
         }
@@ -343,14 +317,34 @@ contract PixCashier is
             revert InappropriateCashOutStatus(status);
         }
 
-        account = operation.account;
-        amount = operation.amount;
-        cashOutBalance = _cashOutBalances[account];
+        address account = operation.account;
+        uint256 amount = operation.amount;
+        uint256 cashOutBalance = _cashOutBalances[account];
 
-        operation.status = CashOutStatus.Confirmed;
+        operation.status = targetStatus;
         _processedCashOutCounter += 1;
         _pendingCashOutTxIds.remove(txId);
         cashOutBalance -= amount;
         _cashOutBalances[account] = cashOutBalance;
+
+        if (targetStatus == CashOutStatus.Confirmed) {
+            emit ConfirmCashOut(
+                account,
+                amount,
+                cashOutBalance,
+                txId
+            );
+
+            IERC20Mintable(_token).burn(amount);
+        } else {
+            emit ReverseCashOut(
+                account,
+                amount,
+                cashOutBalance,
+                txId
+            );
+
+            IERC20Upgradeable(_token).safeTransfer(account, amount);
+        }
     }
 }
