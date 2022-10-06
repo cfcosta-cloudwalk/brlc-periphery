@@ -24,9 +24,9 @@ interface IPixCashierTypes {
 
     /// @dev Structure with data of a single cash-out operation
     struct CashOut {
-        address account;
-        uint256 amount;
-        CashOutStatus status;
+        address account;      // add cooment
+        uint256 amount;       // add comment
+        CashOutStatus status; // add comment
     }
 }
 
@@ -77,10 +77,14 @@ interface IPixCashier is IPixCashierTypes {
      */
     function cashOutBalanceOf(address account) external view returns (uint256);
 
-    /// @dev Returns the pending cash-out operation counter.
+    /**
+     * @dev Returns the pending cash-out operation counter.
+     */
     function pendingCashOutCounter() external view returns (uint256);
 
-    /// @dev Returns the processed cash-out operation counter that includes number of reversed and confirmed operations.
+    /**
+     * @dev Returns the processed cash-out operation counter (reversed and confirmed operations included).
+     */
     function processedCashOutCounter() external view returns (uint256);
 
     /**

@@ -54,14 +54,18 @@ contract PixCashier is
     /// @dev The zero off-chain transaction identifier has been passed as a function argument.
     error ZeroTxId();
 
+    /// @dev Empty array of off-chain transaction identifier has been passed as a function argument.
+    error EmptyTransactionIdsArray();
+
+    /// @dev The minting of tokens failed when processing an `cashIn` operation.
+    error TokenMintingFailure();
+
     /**
      * @dev The cash-out operation with the provided off-chain transaction identifier has an inappropriate status.
-     * @param currentStatus The current status of the operation.
+     * @param txId The off-chain transaction identifiers of the operations.
+     * @param status The current status of the operation.
      */
-    error InappropriateCashOutStatus(CashOutStatus currentStatus);
-
-    /// @dev Empty array of off-chain transaction identifier has been passed as a function argument.
-    error EmptyTxIdsArray();
+    error InappropriateCashOutStatus(bytes32 txId, CashOutStatus status);
 
     // -------------------- Functions --------------------------------
 
@@ -118,17 +122,23 @@ contract PixCashier is
         return _cashOutBalances[account];
     }
 
-    /// @dev See {IPixCashier-pendingCashOutCounter}.
+    /**
+     * @dev See {IPixCashier-pendingCashOutCounter}.
+     */
     function pendingCashOutCounter() external view returns (uint256) {
         return _pendingCashOutTxIds.length();
     }
 
-    /// @dev See {IPixCashier-processedCashOutCounter}.
+    /**
+     * @dev See {IPixCashier-processedCashOutCounter}.
+     */
     function processedCashOutCounter() external view returns (uint256) {
         return _processedCashOutCounter;
     }
 
-    /// @dev See {IPixCashier-getPendingCashOutTxIds}.
+    /**
+     * See {IPixCashier-getPendingCashOutTxIds}.
+     */
     function getPendingCashOutTxIds(uint256 index, uint256 limit) external view returns (bytes32[] memory txIds) {
         uint256 len = _pendingCashOutTxIds.length();
         if (len <= index || limit == 0) {
@@ -139,19 +149,23 @@ contract PixCashier is
                 len = limit;
             }
             txIds = new bytes32[](len);
-            for (uint256 i = 0; i < len; ++i) {
+            for (uint256 i = 0; i < len; i++) {
                 txIds[i] = _pendingCashOutTxIds.at(index);
-                ++index;
+                index++;
             }
         }
     }
 
-    /// @dev See {IPixCashier-getCashOut}.
+    /**
+     * @dev See {IPixCashier-getCashOut}.
+     */
     function getCashOut(bytes32 txIds) external view returns (CashOut memory) {
         return _cashOuts[txIds];
     }
 
-    /// @dev See {IPixCashier-getCashOuts}.
+    /**
+     * @dev See {IPixCashier-getCashOuts}.
+     */
     function getCashOuts(bytes32[] memory txIds) external view returns (CashOut[] memory cashOuts) {
         uint256 len = txIds.length;
         cashOuts = new CashOut[](len);
@@ -186,7 +200,9 @@ contract PixCashier is
 
         emit CashIn(account, amount, txId);
 
-        IERC20Mintable(_token).mint(account, amount);
+        if(!IERC20Mintable(_token).mint(account, amount)) {
+            revert TokenMintingFailure();
+        }
     }
 
     /**
@@ -206,10 +222,11 @@ contract PixCashier is
         if (txId == 0) {
             revert ZeroTxId();
         }
+
         CashOut storage operation = _cashOuts[txId];
         CashOutStatus status = operation.status;
         if (status == CashOutStatus.Pending) {
-            revert InappropriateCashOutStatus(status);
+            revert InappropriateCashOutStatus(txId, status);
         }
 
         address sender = _msgSender();
@@ -263,7 +280,7 @@ contract PixCashier is
     function confirmCashOuts(bytes32[] memory txIds) external whenNotPaused onlyRole(CASHIER_ROLE) {
         uint256 len = txIds.length;
         if (len == 0) {
-            revert EmptyTxIdsArray();
+            revert EmptyTransactionIdsArray();
         }
 
         for (uint256 i = 0; i < len; i++) {
@@ -299,7 +316,7 @@ contract PixCashier is
     function reverseCashOuts(bytes32[] memory txIds) external whenNotPaused onlyRole(CASHIER_ROLE) {
         uint256 len = txIds.length;
         if (len == 0) {
-            revert EmptyTxIdsArray();
+            revert EmptyTransactionIdsArray();
         }
 
         for (uint256 i = 0; i < len; i++) {
@@ -311,10 +328,11 @@ contract PixCashier is
         if (txId == 0) {
             revert ZeroTxId();
         }
+
         CashOut storage operation = _cashOuts[txId];
         CashOutStatus status = operation.status;
         if (status != CashOutStatus.Pending) {
-            revert InappropriateCashOutStatus(status);
+            revert InappropriateCashOutStatus(txId, status);
         }
 
         address account = operation.account;
@@ -334,7 +352,6 @@ contract PixCashier is
                 cashOutBalance,
                 txId
             );
-
             IERC20Mintable(_token).burn(amount);
         } else {
             emit ReverseCashOut(
@@ -343,7 +360,6 @@ contract PixCashier is
                 cashOutBalance,
                 txId
             );
-
             IERC20Upgradeable(_token).safeTransfer(account, amount);
         }
     }
