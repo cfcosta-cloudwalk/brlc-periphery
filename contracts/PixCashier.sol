@@ -62,7 +62,7 @@ contract PixCashier is
 
     /**
      * @dev The cash-out operation with the provided off-chain transaction identifier has an inappropriate status.
-     * @param txId The off-chain transaction identifiers of the operations.
+     * @param txId The off-chain transaction identifiers of the operation.
      * @param status The current status of the operation.
      */
     error InappropriateCashOutStatus(bytes32 txId, CashOutStatus status);

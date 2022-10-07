@@ -24,9 +24,9 @@ interface IPixCashierTypes {
 
     /// @dev Structure with data of a single cash-out operation
     struct CashOut {
-        address account;      // add cooment
-        uint256 amount;       // add comment
-        CashOutStatus status; // add comment
+        address account;      // The owner of tokens to cash-out.
+        uint256 amount;       // The amount of tokens to cash-out.
+        CashOutStatus status; // The status of the cash-out operation according to the {CashOutStatus} enum
     }
 }
 
