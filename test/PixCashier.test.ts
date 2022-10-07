@@ -71,8 +71,9 @@ describe("Contract 'PixCashier'", async () => {
   const REVERT_ERROR_IF_ACCOUNT_IS_ZERO = "ZeroAccount";
   const REVERT_ERROR_IF_AMOUNT_IS_ZERO = "ZeroAmount";
   const REVERT_ERROR_IF_TRANSACTION_ID_IS_ZERO = "ZeroTxId";
+  const REVERT_ERROR_IF_TOKEN_MINTING_FAILURE = "TokenMintingFailure";
   const REVERT_ERROR_IF_INAPPROPRIATE_CASH_OUT_STATUS = "InappropriateCashOutStatus";
-  const REVERT_ERROR_IF_EMPTY_TX_IDS_ARRAY = "EmptyTransactionIdsArray";
+  const REVERT_ERROR_IF_EMPTY_TRANSACTION_IDS_ARRAY = "EmptyTransactionIdsArray";
 
   let PixCashier: ContractFactory;
   let pixCashier: Contract;
@@ -303,6 +304,13 @@ describe("Contract 'PixCashier'", async () => {
       ).to.be.revertedWithCustomError(pixCashier, REVERT_ERROR_IF_TRANSACTION_ID_IS_ZERO);
     });
 
+    it("Is reverted if minting function returns 'false'", async () => {
+      await proveTx(tokenMock.setMintResult(false));
+      await expect(
+        pixCashier.connect(cashier).cashIn(user.address, tokenAmount, TRANSACTION_ID1)
+      ).to.be.revertedWithCustomError(pixCashier, REVERT_ERROR_IF_TOKEN_MINTING_FAILURE);
+    });
+
     it("Mints correct amount of tokens and emits the correct event", async () => {
       await expect(
         pixCashier.connect(cashier).cashIn(user.address, tokenAmount, TRANSACTION_ID1)
@@ -400,7 +408,7 @@ describe("Contract 'PixCashier'", async () => {
       ).to.be.revertedWithCustomError(
         pixCashier,
         REVERT_ERROR_IF_INAPPROPRIATE_CASH_OUT_STATUS
-      ).withArgs(CashOutStatus.Pending);
+      ).withArgs(cashOut.txId, CashOutStatus.Pending);
     });
   });
 
@@ -444,7 +452,7 @@ describe("Contract 'PixCashier'", async () => {
       ).to.be.revertedWithCustomError(
         pixCashier,
         REVERT_ERROR_IF_INAPPROPRIATE_CASH_OUT_STATUS
-      ).withArgs(CashOutStatus.Nonexistent);
+      ).withArgs(cashOut.txId, CashOutStatus.Nonexistent);
     });
 
     it("Burns tokens as expected, emits the correct event, changes the contract state accordingly", async () => {
@@ -512,7 +520,7 @@ describe("Contract 'PixCashier'", async () => {
     it("Is reverted if the off-chain transaction IDs array is empty", async () => {
       await expect(
         pixCashier.connect(cashier).confirmCashOuts([])
-      ).to.be.revertedWithCustomError(pixCashier, REVERT_ERROR_IF_EMPTY_TX_IDS_ARRAY);
+      ).to.be.revertedWithCustomError(pixCashier, REVERT_ERROR_IF_EMPTY_TRANSACTION_IDS_ARRAY);
     });
 
     it("Burns tokens as expected, emits the correct event, changes the contract state accordingly", async () => {
@@ -562,7 +570,7 @@ describe("Contract 'PixCashier'", async () => {
       ).to.be.revertedWithCustomError(
         pixCashier,
         REVERT_ERROR_IF_INAPPROPRIATE_CASH_OUT_STATUS
-      ).withArgs(CashOutStatus.Nonexistent);
+      ).withArgs(TRANSACTION_ID3, CashOutStatus.Nonexistent);
     });
   });
 
@@ -606,7 +614,7 @@ describe("Contract 'PixCashier'", async () => {
       ).to.be.revertedWithCustomError(
         pixCashier,
         REVERT_ERROR_IF_INAPPROPRIATE_CASH_OUT_STATUS
-      ).withArgs(CashOutStatus.Nonexistent);
+      ).withArgs(cashOut.txId, CashOutStatus.Nonexistent);
     });
 
     it("Transfers tokens as expected, emits the correct event, changes the contract state accordingly", async () => {
@@ -674,7 +682,7 @@ describe("Contract 'PixCashier'", async () => {
     it("Is reverted if the off-chain transaction IDs array is empty", async () => {
       await expect(
         pixCashier.connect(cashier).reverseCashOuts([])
-      ).to.be.revertedWithCustomError(pixCashier, REVERT_ERROR_IF_EMPTY_TX_IDS_ARRAY);
+      ).to.be.revertedWithCustomError(pixCashier, REVERT_ERROR_IF_EMPTY_TRANSACTION_IDS_ARRAY);
     });
 
     it("Transfers tokens as expected, emits the correct event, changes the contract state accordingly", async () => {
@@ -724,7 +732,7 @@ describe("Contract 'PixCashier'", async () => {
       ).to.be.revertedWithCustomError(
         pixCashier,
         REVERT_ERROR_IF_INAPPROPRIATE_CASH_OUT_STATUS
-      ).withArgs(CashOutStatus.Nonexistent);
+      ).withArgs(TRANSACTION_ID3, CashOutStatus.Nonexistent);
     });
   });
 
@@ -813,13 +821,13 @@ describe("Contract 'PixCashier'", async () => {
       ).to.be.revertedWithCustomError(
         pixCashier,
         REVERT_ERROR_IF_INAPPROPRIATE_CASH_OUT_STATUS
-      ).withArgs(CashOutStatus.Reversed);
+      ).withArgs(cashOut.txId, CashOutStatus.Reversed);
       await expect(
         pixCashier.connect(cashier).reverseCashOuts([cashOut.txId])
       ).to.be.revertedWithCustomError(
         pixCashier,
         REVERT_ERROR_IF_INAPPROPRIATE_CASH_OUT_STATUS
-      ).withArgs(CashOutStatus.Reversed);
+      ).withArgs(cashOut.txId, CashOutStatus.Reversed);
 
       // After reversing a cash-out with the same txId can't be confirmed.
       await expect(
@@ -827,13 +835,13 @@ describe("Contract 'PixCashier'", async () => {
       ).to.be.revertedWithCustomError(
         pixCashier,
         REVERT_ERROR_IF_INAPPROPRIATE_CASH_OUT_STATUS
-      ).withArgs(CashOutStatus.Reversed);
+      ).withArgs(cashOut.txId, CashOutStatus.Reversed);
       await expect(
         pixCashier.connect(cashier).confirmCashOuts([cashOut.txId])
       ).to.be.revertedWithCustomError(
         pixCashier,
         REVERT_ERROR_IF_INAPPROPRIATE_CASH_OUT_STATUS
-      ).withArgs(CashOutStatus.Reversed);
+      ).withArgs(cashOut.txId, CashOutStatus.Reversed);
 
       expect(await tokenMock.balanceOf(cashOut.account.address)).to.equal(cashInTokenAmount);
 
@@ -857,13 +865,13 @@ describe("Contract 'PixCashier'", async () => {
       ).to.be.revertedWithCustomError(
         pixCashier,
         REVERT_ERROR_IF_INAPPROPRIATE_CASH_OUT_STATUS
-      ).withArgs(CashOutStatus.Confirmed);
+      ).withArgs(cashOut.txId, CashOutStatus.Confirmed);
       await expect(
         pixCashier.connect(cashier).reverseCashOuts([cashOut.txId])
       ).to.be.revertedWithCustomError(
         pixCashier,
         REVERT_ERROR_IF_INAPPROPRIATE_CASH_OUT_STATUS
-      ).withArgs(CashOutStatus.Confirmed);
+      ).withArgs(cashOut.txId, CashOutStatus.Confirmed);
 
       // After confirming a cash-out with the same txId can't be confirmed.
       await expect(
@@ -871,13 +879,13 @@ describe("Contract 'PixCashier'", async () => {
       ).to.be.revertedWithCustomError(
         pixCashier,
         REVERT_ERROR_IF_INAPPROPRIATE_CASH_OUT_STATUS
-      ).withArgs(CashOutStatus.Confirmed);
+      ).withArgs(cashOut.txId, CashOutStatus.Confirmed);
       await expect(
         pixCashier.connect(cashier).confirmCashOuts([cashOut.txId])
       ).to.be.revertedWithCustomError(
         pixCashier,
         REVERT_ERROR_IF_INAPPROPRIATE_CASH_OUT_STATUS
-      ).withArgs(CashOutStatus.Confirmed);
+      ).withArgs(cashOut.txId, CashOutStatus.Confirmed);
 
       expect(await tokenMock.balanceOf(cashOut.account.address)).to.equal(cashInTokenAmount - cashOut.amount);
 
